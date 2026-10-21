@@ -1,5 +1,7 @@
 import torch
+from pathlib import Path
 from tqdm.auto import tqdm
+from src.utils.checkpoint import load_checkpoint, save_checkpoint
 from src.utils.logging import gradient_norm
 
 def train_one_epoch(
@@ -111,6 +113,7 @@ def validation(model, val_loader, criterion, device, epoch=None):
 def train(
     model, train_loader, val_loader, criterion, optimizer, scheduler, epochs, device,
     experiment=None, log_every_n_steps=50,
+    checkpoint_dir=None, resume_from_checkpoint=None,
 ):
 
     if log_every_n_steps < 1:
@@ -119,8 +122,20 @@ def train(
     train_losses = []
     val_losses = []
     global_step = 0
+    start_epoch = 0
+    best_val_loss = float("inf")
 
-    for epoch in range(epochs):
+    if resume_from_checkpoint is not None:
+        checkpoint = load_checkpoint(resume_from_checkpoint, model, optimizer, scheduler)
+        start_epoch = checkpoint["epoch"]
+        global_step = checkpoint["global_step"]
+        best_val_loss = checkpoint["best_val_loss"]
+        train_losses = list(checkpoint["train_losses"])
+        val_losses = list(checkpoint["val_losses"])
+        del checkpoint
+        tqdm.write(f"Resumed after epoch {start_epoch}, step {global_step}")
+
+    for epoch in range(start_epoch, epochs):
         
         epoch_loss, batch_losses = train_one_epoch(
             model, train_loader, criterion, optimizer, device,
@@ -136,6 +151,23 @@ def train(
         val_losses.append(val_loss)
         
         scheduler.step(val_loss)
+        is_best = val_loss < best_val_loss
+        if is_best:
+            best_val_loss = val_loss
+
+        if checkpoint_dir is not None:
+            checkpoint_dir = Path(checkpoint_dir)
+            checkpoint_state = dict(
+                model=model, optimizer=optimizer, scheduler=scheduler,
+                epoch=epoch + 1, global_step=global_step,
+                best_val_loss=best_val_loss,
+                train_losses=train_losses, val_losses=val_losses,
+            )
+            save_checkpoint(checkpoint_dir / "last.pt", **checkpoint_state)
+            if is_best:
+                save_checkpoint(checkpoint_dir / "best.pt", **checkpoint_state)
+            tqdm.write(f"Checkpoint saved: {checkpoint_dir / 'last.pt'}")
+
         tqdm.write(
             f"Epoch {epoch + 1}/{epochs}: "
             f"train_loss={epoch_loss:.4f}, val_loss={val_loss:.4f}"

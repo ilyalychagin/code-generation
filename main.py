@@ -16,9 +16,25 @@ from configs.config import Config
 from src.dataset.dataset import get_tokenized_dataset, get_raw_dataset
 from src.models.tokenizer import get_tokenizer
 
+
+def limit_dataset(dataset, max_samples, seed):
+    if max_samples is None:
+        return dataset
+    if max_samples < 1:
+        raise ValueError("Sample limits must be positive or None")
+    if max_samples >= len(dataset):
+        return dataset
+    return dataset.shuffle(seed=seed).select(range(max_samples))
+
+
 def main():
     config = Config()
     validate_logging_config(config)
+    for limit in (config.max_train_samples, config.max_val_samples):
+        if limit is not None and limit < 1:
+            raise ValueError("Sample limits must be positive or None")
+    if config.resume_from_checkpoint is not None and not config.resume_from_checkpoint.is_file():
+        raise FileNotFoundError(config.resume_from_checkpoint)
     set_seed(config.seed)
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -42,8 +58,13 @@ def main():
         seed=config.seed,
     )
 
-    train_dataset = split["train"]
-    val_dataset = split["test"]
+    train_dataset = limit_dataset(split["train"], config.max_train_samples, config.seed)
+    val_dataset = limit_dataset(split["test"], config.max_val_samples, config.seed)
+    print(
+        f"Dataset sizes: train={len(train_dataset)}, validation={len(val_dataset)}, "
+        f"test={len(dataset['test'])}",
+        flush=True,
+    )
 
     train_loader = DataLoader(
         train_dataset,
@@ -110,6 +131,8 @@ def main():
             scheduler, config.epochs, device,
             experiment=experiment,
             log_every_n_steps=config.log_every_n_steps,
+            checkpoint_dir=config.output_dir,
+            resume_from_checkpoint=config.resume_from_checkpoint,
         )
 
         torch.save(model.state_dict(), config.output_dir / "checkpoint.pt")

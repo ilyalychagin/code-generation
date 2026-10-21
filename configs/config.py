@@ -21,6 +21,9 @@ class Config:
     trunc_len: int | None = 512
 
     # Training
+    max_train_samples: int | None = None
+    max_val_samples: int | None = None
+    resume_from_checkpoint: Path | None = None
     epochs: int = 10
     learning_rate: float = 1e-3
     scheduler_factor: float = 0.5
