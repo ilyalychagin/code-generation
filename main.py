@@ -11,12 +11,14 @@ import torch.optim as optim
 from src.scripts.train import train
 from src.scripts.inference import write_answer
 from src.utils.utils import set_seed
+from src.utils.logging import create_experiment, validate_logging_config
 from configs.config import Config
 from src.dataset.dataset import get_tokenized_dataset, get_raw_dataset
 from src.models.tokenizer import get_tokenizer
 
 def main():
     config = Config()
+    validate_logging_config(config)
     set_seed(config.seed)
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -101,15 +103,25 @@ def main():
         patience=config.scheduler_patience,
     )
 
-    train(model, train_loader, val_loader, nn.CrossEntropyLoss(), optimizer, scheduler, config.epochs, device)
+    experiment = create_experiment(config, model, optimizer, scheduler, device)
+    try:
+        train(
+            model, train_loader, val_loader, nn.CrossEntropyLoss(), optimizer,
+            scheduler, config.epochs, device,
+            experiment=experiment,
+            log_every_n_steps=config.log_every_n_steps,
+        )
 
-    torch.save(model.state_dict(), config.output_dir / "checkpoint.pt")
+        torch.save(model.state_dict(), config.output_dir / "checkpoint.pt")
 
-    write_answer(
-        model, test_loader, device, tokenizer,
-        output_path=config.output_dir / "pass1_questions.jsonl",
-        max_new_tokens=config.max_new_tokens,
-    )
+        write_answer(
+            model, test_loader, device, tokenizer,
+            output_path=config.output_dir / "pass1_questions.jsonl",
+            max_new_tokens=config.max_new_tokens,
+        )
+    finally:
+        if experiment is not None:
+            experiment.end()
 
 
 if __name__ == "__main__":

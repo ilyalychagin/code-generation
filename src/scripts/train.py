@@ -1,6 +1,10 @@
 import torch
+from src.utils.logging import gradient_norm
 
-def train_one_epoch(model, train_loader, criterion, optimizer, device):
+def train_one_epoch(
+    model, train_loader, criterion, optimizer, device,
+    experiment=None, epoch=0, start_step=0, log_every_n_steps=50,
+):
     model.train()
 
     total_loss = 0.0
@@ -8,7 +12,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device):
 
     batch_losses = []
     
-    for batch in train_loader:
+    for batch_index, batch in enumerate(train_loader, start=1):
         batch = {
             key: value.to(device)
             for key, value in batch.items()
@@ -22,11 +26,27 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device):
 
         loss.backward()
 
+        loss_value = loss.item()
         num_tokens = (batch["labels"] != -100).sum().item()
-        total_loss += loss.item() * num_tokens
+        total_loss += loss_value * num_tokens
         total_tokens += num_tokens
 
-        batch_losses.append(loss.item())
+        batch_losses.append(loss_value)
+
+        step = start_step + batch_index
+        if experiment is not None and (step == 1 or step % log_every_n_steps == 0):
+            experiment.log_metrics(
+                {
+                    "train/batch_loss": loss_value,
+                    "train/grad_norm": gradient_norm(model),
+                    **{
+                        f"train/lr/group_{index}": group["lr"]
+                        for index, group in enumerate(optimizer.param_groups)
+                    },
+                },
+                step=step,
+                epoch=epoch,
+            )
 
         optimizer.step()
         optimizer.zero_grad()
@@ -59,19 +79,46 @@ def validation(model, val_loader, criterion, device):
     
     return total_loss / total_tokens
 
-def train(model, train_loader, val_loader, criterion, optimizer, scheduler, epochs, device):
+def train(
+    model, train_loader, val_loader, criterion, optimizer, scheduler, epochs, device,
+    experiment=None, log_every_n_steps=50,
+):
+
+    if log_every_n_steps < 1:
+        raise ValueError("log_every_n_steps must be positive")
 
     train_losses = []
     val_losses = []
+    global_step = 0
 
     for epoch in range(epochs):
         
-        epoch_loss, batch_losses = train_one_epoch(model, train_loader, criterion, optimizer, device)
+        epoch_loss, batch_losses = train_one_epoch(
+            model, train_loader, criterion, optimizer, device,
+            experiment=experiment,
+            epoch=epoch + 1,
+            start_step=global_step,
+            log_every_n_steps=log_every_n_steps,
+        )
+        global_step += len(batch_losses)
         train_losses.append(epoch_loss)
 
         val_loss = validation(model, val_loader, criterion, device)
         val_losses.append(val_loss)
         
-        scheduler.step(val_loss) # нужно как-то смотреть, в зависимости от шедулера, что передавать
+        scheduler.step(val_loss)
+        if experiment is not None:
+            experiment.log_metrics(
+                {
+                    "train/epoch_loss": epoch_loss,
+                    "validation/loss": val_loss,
+                    **{
+                        f"train/next_lr/group_{index}": group["lr"]
+                        for index, group in enumerate(optimizer.param_groups)
+                    },
+                },
+                step=global_step,
+                epoch=epoch + 1,
+            )
     
     return train_losses, val_losses

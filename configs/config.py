@@ -28,3 +28,10 @@ class Config:
 
     # Generation
     max_new_tokens: int = 128
+
+    # Comet (API key is read from COMET_API_KEY)
+    comet_enabled: bool = False
+    comet_project: str = "hw02-code-generation"
+    comet_workspace: str | None = None
+    comet_experiment_name: str = "baseline"
+    log_every_n_steps: int = 50
