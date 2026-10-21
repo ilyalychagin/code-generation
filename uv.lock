@@ -319,6 +319,7 @@ dependencies = [
     { name = "numpy" },
     { name = "tokenizers" },
     { name = "torch" },
+    { name = "tqdm" },
     { name = "transformers" },
 ]
 
@@ -329,6 +330,7 @@ requires-dist = [
     { name = "numpy", specifier = "==2.5.3" },
     { name = "tokenizers", specifier = "==0.23.2" },
     { name = "torch", specifier = "==2.7.1", index = "https://download-r2.pytorch.org/whl/cu118" },
+    { name = "tqdm", specifier = ">=4.67,<5" },
     { name = "transformers", specifier = "==5.18.0" },
 ]
 

@@ -1,4 +1,5 @@
 import torch
+from tqdm.auto import tqdm
 from src.utils.logging import gradient_norm
 
 def train_one_epoch(
@@ -12,7 +13,14 @@ def train_one_epoch(
 
     batch_losses = []
     
-    for batch_index, batch in enumerate(train_loader, start=1):
+    progress = tqdm(
+        train_loader,
+        desc=f"Train epoch {epoch}" if epoch else "Train",
+        unit="batch",
+        dynamic_ncols=True,
+        mininterval=2.0,
+    )
+    for batch_index, batch in enumerate(progress, start=1):
         batch = {
             key: value.to(device)
             for key, value in batch.items()
@@ -50,17 +58,31 @@ def train_one_epoch(
 
         optimizer.step()
         optimizer.zero_grad()
+
+        progress.set_postfix(
+            loss=f"{loss_value:.4f}",
+            avg_loss=f"{total_loss / total_tokens:.4f}",
+            lr=f"{optimizer.param_groups[0]['lr']:.2e}",
+            refresh=False,
+        )
     
     return total_loss / total_tokens, batch_losses
 
 @torch.no_grad()
-def validation(model, val_loader, criterion, device):
+def validation(model, val_loader, criterion, device, epoch=None):
     model.eval()
 
     total_loss = 0.0
     total_tokens = 0
     
-    for batch in val_loader:
+    progress = tqdm(
+        val_loader,
+        desc=f"Validation epoch {epoch}" if epoch is not None else "Validation",
+        unit="batch",
+        dynamic_ncols=True,
+        mininterval=2.0,
+    )
+    for batch in progress:
         batch = {
             key: value.to(device)
             for key, value in batch.items()
@@ -73,8 +95,15 @@ def validation(model, val_loader, criterion, device):
         )
 
         num_tokens = (batch["labels"] != -100).sum().item()
-        total_loss += loss.item() * num_tokens
+        loss_value = loss.item()
+        total_loss += loss_value * num_tokens
         total_tokens += num_tokens
+
+        progress.set_postfix(
+            loss=f"{loss_value:.4f}",
+            avg_loss=f"{total_loss / total_tokens:.4f}",
+            refresh=False,
+        )
 
     
     return total_loss / total_tokens
@@ -103,10 +132,14 @@ def train(
         global_step += len(batch_losses)
         train_losses.append(epoch_loss)
 
-        val_loss = validation(model, val_loader, criterion, device)
+        val_loss = validation(model, val_loader, criterion, device, epoch=epoch + 1)
         val_losses.append(val_loss)
         
         scheduler.step(val_loss)
+        tqdm.write(
+            f"Epoch {epoch + 1}/{epochs}: "
+            f"train_loss={epoch_loss:.4f}, val_loss={val_loss:.4f}"
+        )
         if experiment is not None:
             experiment.log_metrics(
                 {
