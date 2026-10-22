@@ -1,5 +1,8 @@
 import json
 import os
+import shlex
+import subprocess
+import sys
 from dataclasses import asdict
 from pathlib import Path
 
@@ -9,8 +12,8 @@ import torch
 def validate_logging_config(config):
     if config.log_every_n_steps < 1:
         raise ValueError("log_every_n_steps must be positive")
-    if config.comet_enabled and not os.environ.get("COMET_API_KEY"):
-        raise ValueError("Set COMET_API_KEY before enabling Comet logging")
+    if config.comet_upload_timeout < 1:
+        raise ValueError("comet_upload_timeout must be positive")
     if config.log_code_every_n_steps is not None and config.log_code_every_n_steps < 1:
         raise ValueError("log_code_every_n_steps must be positive or None")
     if config.log_code_num_samples < 1:
@@ -76,10 +79,10 @@ def create_experiment(config, model, optimizer, scheduler, device):
     if not config.comet_enabled:
         return None
 
-    from comet_ml import Experiment
+    from comet_ml import OfflineExperiment
 
-    experiment = Experiment(
-        api_key=os.environ["COMET_API_KEY"],
+    experiment = OfflineExperiment(
+        offline_directory=str(output_dir / "comet"),
         project_name=config.comet_project,
         workspace=config.comet_workspace,
         auto_metric_logging=False,
@@ -108,6 +111,38 @@ def create_experiment(config, model, optimizer, scheduler, device):
         experiment.end()
         raise
     return experiment
+
+
+def upload_comet_archive(archive, timeout=60):
+    command = [sys.executable, "-m", "comet_ml.scripts.comet_upload", str(archive)]
+    if not os.environ.get("COMET_API_KEY"):
+        print("Comet upload skipped: COMET_API_KEY is not set.", flush=True)
+        print(f"Upload later: {shlex.join(command)}", flush=True)
+        return
+
+    print(f"Uploading Comet archive: {archive}", flush=True)
+    try:
+        subprocess.run(command, check=True, timeout=timeout)
+    except (subprocess.SubprocessError, OSError) as error:
+        print(f"Comet upload failed; local archive kept: {archive}. Reason: {error}", flush=True)
+        print(f"Upload later: {shlex.join(command)}", flush=True)
+    else:
+        print(f"Comet upload completed; local archive kept: {archive}", flush=True)
+
+
+def finish_experiment(experiment, config):
+    if experiment is None:
+        return
+    try:
+        experiment.end()
+    except Exception as error:
+        print(f"Could not finalize Comet offline logs: {error}", flush=True)
+        return
+
+    archive = Path(experiment.offline_directory) / f"{experiment.get_key()}.zip"
+    print(f"Comet offline archive: {archive}", flush=True)
+    if config.comet_upload_on_end:
+        upload_comet_archive(archive, timeout=config.comet_upload_timeout)
 
 
 @torch.no_grad()

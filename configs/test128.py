@@ -6,9 +6,12 @@ from configs.config import Config as BaseConfig, PROJECT_ROOT
 
 @dataclass(frozen=True)
 class Config(BaseConfig):
-    output_dir: Path = PROJECT_ROOT / "runs/test128"
     max_train_samples: int | None = 128
-    max_val_samples: int | None = 1
-    epochs: int = 1
+    max_val_samples: int | None = 128
+    epochs: int = 100
     learning_rate: float = 1e-3
-    comet_experiment_name: str = "test128"
+    scheduler_patience: int = 100
+
+    comet_enabled: bool = True
+    log_every_n_steps: int = 10
+    log_code_every_n_steps: int | None = 100

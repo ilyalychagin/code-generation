@@ -32,8 +32,10 @@ class Config:
     # Generation
     max_new_tokens: int = 128
 
-    # Comet (API key is read from COMET_API_KEY)
+    # Comet logs locally; COMET_API_KEY is used only for uploading afterwards.
     comet_enabled: bool = False
+    comet_upload_on_end: bool = True
+    comet_upload_timeout: int = 60
     comet_project: str = "hw02-code-generation"
     comet_workspace: str | None = None
     comet_experiment_name: str = "baseline"

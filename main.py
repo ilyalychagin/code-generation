@@ -13,7 +13,9 @@ import torch.optim as optim
 from src.scripts.train import train
 from src.scripts.inference import write_answer
 from src.utils.utils import set_seed
-from src.utils.logging import create_experiment, log_code_samples, validate_logging_config
+from src.utils.logging import (
+    create_experiment, finish_experiment, log_code_samples, validate_logging_config,
+)
 from src.utils.config import load_config
 from configs.config import PROJECT_ROOT
 from src.dataset.dataset import get_tokenized_dataset, get_raw_dataset
@@ -180,8 +182,7 @@ def main():
             max_new_tokens=config.max_new_tokens,
         )
     finally:
-        if experiment is not None:
-            experiment.end()
+        finish_experiment(experiment, config)
 
 
 if __name__ == "__main__":
