@@ -26,13 +26,13 @@ class Config:
     resume_from_checkpoint: Path | None = None
     epochs: int = 10
     learning_rate: float = 1e-3
-    max_grad_norm: float | None = 1.0
+    max_grad_norm: float | None = None
     scheduler_factor: float = 0.5
     scheduler_patience: int = 2
 
     # Generation
     test_batch_size: int = 64
-    max_new_tokens: int = 128
+    max_new_tokens: int = 512
 
     # Comet logs locally; COMET_API_KEY is used only for uploading afterwards.
     comet_enabled: bool = True

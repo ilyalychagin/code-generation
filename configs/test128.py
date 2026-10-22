@@ -11,10 +11,11 @@ class Config(BaseConfig):
     epochs: int = 100
     learning_rate: float = 1e-3
     scheduler_patience: int = 100
-    output_dir: Path = PROJECT_ROOT / "runs/test128_2"
+    output_dir: Path = PROJECT_ROOT / "runs/test128_clip"
+    max_grad_norm: float | None = 1.0
 
     comet_enabled: bool = True
     log_every_n_steps: int = 10
     log_code_every_n_steps: int | None = 100
-    comet_experiment_name: str = "test128_2"
+    comet_experiment_name: str = "test128_clip"
 
