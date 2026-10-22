@@ -27,6 +27,7 @@ class Config:
     epochs: int = 10
     learning_rate: float = 1e-3
     max_grad_norm: float | None = None
+    val_every_n_steps: int = 25000
     scheduler_factor: float = 0.5
     scheduler_patience: int = 2
 
@@ -39,7 +40,7 @@ class Config:
     comet_upload_on_end: bool = True
     comet_upload_timeout: int = 60
     comet_project: str = "hw02-code-generation"
-    comet_workspace: str | None = ""
+    comet_workspace: str | None = "ilyalychagin"
     comet_experiment_name: str = "baseline"
     log_every_n_steps: int = 50
     log_code_every_n_steps: int | None = 1000

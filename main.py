@@ -173,6 +173,7 @@ def main():
             code_logger=code_logger,
             log_code_every_n_steps=config.log_code_every_n_steps,
             max_grad_norm=config.max_grad_norm,
+            val_every_n_steps=config.val_every_n_steps,
         )
 
         torch.save(model.state_dict(), config.output_dir / "checkpoint.pt")

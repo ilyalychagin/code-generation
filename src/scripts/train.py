@@ -4,80 +4,6 @@ from tqdm.auto import tqdm
 from src.utils.checkpoint import load_checkpoint, save_checkpoint
 from src.utils.logging import gradient_norm
 
-def train_one_epoch(
-    model, train_loader, criterion, optimizer, device,
-    experiment=None, epoch=0, start_step=0, log_every_n_steps=50,
-    code_logger=None, log_code_every_n_steps=1000,
-    max_grad_norm=1.0,
-):
-    model.train()
-
-    total_loss = 0.0
-    total_tokens = 0
-
-    batch_losses = []
-    
-    progress = tqdm(
-        train_loader,
-        desc=f"Train epoch {epoch}" if epoch else "Train",
-        unit="batch",
-        dynamic_ncols=True,
-        mininterval=2.0,
-    )
-    for batch_index, batch in enumerate(progress, start=1):
-        batch = {
-            key: value.to(device)
-            for key, value in batch.items()
-        }
-        output = model(**batch) # [B, L_output, vocab_size]
-
-        loss = criterion(
-            output.logits.transpose(1, 2), 
-            batch['labels']
-        )
-
-        loss.backward()
-
-        loss_value = loss.item()
-        num_tokens = (batch["labels"] != -100).sum().item()
-        total_loss += loss_value * num_tokens
-        total_tokens += num_tokens
-
-        batch_losses.append(loss_value)
-
-        step = start_step + batch_index
-        if experiment is not None and (step == 1 or step % log_every_n_steps == 0):
-            experiment.log_metrics(
-                {
-                    "train/batch_loss": loss_value,
-                    "train/grad_norm": gradient_norm(model),
-                    **{
-                        f"train/lr/group_{index}": group["lr"]
-                        for index, group in enumerate(optimizer.param_groups)
-                    },
-                },
-                step=step,
-                epoch=epoch,
-            )
-
-        if max_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-
-        optimizer.step()
-        optimizer.zero_grad()
-
-        if code_logger is not None and (step == 1 or step % log_code_every_n_steps == 0):
-            code_logger(model, step=step, epoch=epoch)
-
-        progress.set_postfix(
-            loss=f"{loss_value:.4f}",
-            avg_loss=f"{total_loss / total_tokens:.4f}",
-            lr=f"{optimizer.param_groups[0]['lr']:.2e}",
-            refresh=False,
-        )
-    
-    return total_loss / total_tokens, batch_losses
-
 @torch.no_grad()
 def validation(model, val_loader, criterion, device, epoch=None):
     model.eval()
@@ -124,10 +50,13 @@ def train(
     checkpoint_dir=None, resume_from_checkpoint=None,
     code_logger=None, log_code_every_n_steps=1_000,
     max_grad_norm=1.0,
+    val_every_n_steps=25000,
 ):
 
     if log_every_n_steps < 1:
         raise ValueError("log_every_n_steps must be positive")
+    if val_every_n_steps < 1:
+        raise ValueError("val_every_n_steps must be positive")
 
     train_losses = []
     val_losses = []
@@ -146,54 +75,109 @@ def train(
         tqdm.write(f"Resumed after epoch {start_epoch}, step {global_step}")
 
     for epoch in range(start_epoch, epochs):
-        
-        epoch_loss, batch_losses = train_one_epoch(
-            model, train_loader, criterion, optimizer, device,
-            experiment=experiment,
-            epoch=epoch + 1,
-            start_step=global_step,
-            log_every_n_steps=log_every_n_steps,
-            code_logger=code_logger,
-            log_code_every_n_steps=log_code_every_n_steps,
-            max_grad_norm=max_grad_norm,
+        model.train()
+        total_loss = 0.0
+        total_tokens = 0
+        progress = tqdm(
+            train_loader,
+            desc=f"Train epoch {epoch + 1}",
+            unit="batch",
+            dynamic_ncols=True,
+            mininterval=2.0,
         )
-        global_step += len(batch_losses)
-        train_losses.append(epoch_loss)
+        for batch_index, batch in enumerate(progress, start=1):
+            batch = {key: value.to(device) for key, value in batch.items()}
+            output = model(**batch)
+            loss = criterion(output.logits.transpose(1, 2), batch["labels"])
+            loss.backward()
 
-        val_loss = validation(model, val_loader, criterion, device, epoch=epoch + 1)
-        val_losses.append(val_loss)
-        
-        scheduler.step(val_loss)
-        is_best = val_loss < best_val_loss
-        if is_best:
-            best_val_loss = val_loss
+            loss_value = loss.item()
+            num_tokens = (batch["labels"] != -100).sum().item()
+            total_loss += loss_value * num_tokens
+            total_tokens += num_tokens
+            global_step += 1
 
-        if checkpoint_dir is not None:
-            checkpoint_dir = Path(checkpoint_dir)
-            checkpoint_state = dict(
-                model=model, optimizer=optimizer, scheduler=scheduler,
-                epoch=epoch + 1, global_step=global_step,
-                best_val_loss=best_val_loss,
-                train_losses=train_losses, val_losses=val_losses,
+            if experiment is not None and (
+                global_step == 1 or global_step % log_every_n_steps == 0
+            ):
+                experiment.log_metrics(
+                    {
+                        "train/batch_loss": loss_value,
+                        "train/grad_norm": gradient_norm(model),
+                        **{
+                            f"train/lr/group_{index}": group["lr"]
+                            for index, group in enumerate(optimizer.param_groups)
+                        },
+                    },
+                    step=global_step, epoch=epoch + 1,
+                )
+
+            if max_grad_norm is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            optimizer.step()
+            optimizer.zero_grad()
+
+            if code_logger is not None and (
+                global_step == 1 or global_step % log_code_every_n_steps == 0
+            ):
+                code_logger(model, step=global_step, epoch=epoch + 1)
+
+            epoch_finished = batch_index == len(train_loader)
+            if epoch_finished:
+                train_losses.append(total_loss / total_tokens)
+
+            if global_step % val_every_n_steps == 0 or (
+                epoch_finished and epoch + 1 == epochs
+            ):
+                val_loss = validation(model, val_loader, criterion, device, epoch=epoch + 1)
+                model.train()
+                val_losses.append(val_loss)
+                scheduler.step(val_loss)
+                is_best = val_loss < best_val_loss
+                if is_best:
+                    best_val_loss = val_loss
+
+                if checkpoint_dir is not None:
+                    checkpoint_dir = Path(checkpoint_dir)
+                    checkpoint_state = dict(
+                        model=model, optimizer=optimizer, scheduler=scheduler,
+                        epoch=epoch + int(epoch_finished), global_step=global_step,
+                        best_val_loss=best_val_loss,
+                        train_losses=train_losses, val_losses=val_losses,
+                    )
+                    save_checkpoint(checkpoint_dir / "last.pt", **checkpoint_state)
+                    if is_best:
+                        save_checkpoint(checkpoint_dir / "best.pt", **checkpoint_state)
+                    tqdm.write(f"Checkpoint saved: {checkpoint_dir / 'last.pt'}")
+
+                tqdm.write(f"Step {global_step}: val_loss={val_loss:.4f}")
+                if experiment is not None:
+                    experiment.log_metrics(
+                        {
+                            "validation/loss": val_loss,
+                            **{
+                                f"train/next_lr/group_{index}": group["lr"]
+                                for index, group in enumerate(optimizer.param_groups)
+                            },
+                        },
+                        step=global_step, epoch=epoch + 1,
+                    )
+
+            progress.set_postfix(
+                loss=f"{loss_value:.4f}",
+                avg_loss=f"{total_loss / total_tokens:.4f}",
+                lr=f"{optimizer.param_groups[0]['lr']:.2e}",
+                refresh=False,
             )
-            save_checkpoint(checkpoint_dir / "last.pt", **checkpoint_state)
-            if is_best:
-                save_checkpoint(checkpoint_dir / "best.pt", **checkpoint_state)
-            tqdm.write(f"Checkpoint saved: {checkpoint_dir / 'last.pt'}")
 
+        epoch_loss = total_loss / total_tokens
         tqdm.write(
-            f"Epoch {epoch + 1}/{epochs}: "
-            f"train_loss={epoch_loss:.4f}, val_loss={val_loss:.4f}"
+            f"Epoch {epoch + 1}/{epochs}: train_loss={epoch_loss:.4f}"
         )
         if experiment is not None:
             experiment.log_metrics(
                 {
                     "train/epoch_loss": epoch_loss,
-                    "validation/loss": val_loss,
-                    **{
-                        f"train/next_lr/group_{index}": group["lr"]
-                        for index, group in enumerate(optimizer.param_groups)
-                    },
                 },
                 step=global_step,
                 epoch=epoch + 1,
