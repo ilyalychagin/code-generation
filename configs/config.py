@@ -26,6 +26,7 @@ class Config:
     resume_from_checkpoint: Path | None = None
     epochs: int = 10
     learning_rate: float = 1e-3
+    max_grad_norm: float | None = 1.0
     scheduler_factor: float = 0.5
     scheduler_patience: int = 2
 

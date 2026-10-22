@@ -7,7 +7,8 @@ from src.utils.logging import gradient_norm
 def train_one_epoch(
     model, train_loader, criterion, optimizer, device,
     experiment=None, epoch=0, start_step=0, log_every_n_steps=50,
-    code_logger=None, log_code_every_n_steps=1_000,
+    code_logger=None, log_code_every_n_steps=1000,
+    max_grad_norm=1.0,
 ):
     model.train()
 
@@ -58,6 +59,9 @@ def train_one_epoch(
                 step=step,
                 epoch=epoch,
             )
+
+        if max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
 
         optimizer.step()
         optimizer.zero_grad()
@@ -119,6 +123,7 @@ def train(
     experiment=None, log_every_n_steps=50,
     checkpoint_dir=None, resume_from_checkpoint=None,
     code_logger=None, log_code_every_n_steps=1_000,
+    max_grad_norm=1.0,
 ):
 
     if log_every_n_steps < 1:
@@ -150,6 +155,7 @@ def train(
             log_every_n_steps=log_every_n_steps,
             code_logger=code_logger,
             log_code_every_n_steps=log_code_every_n_steps,
+            max_grad_norm=max_grad_norm,
         )
         global_step += len(batch_losses)
         train_losses.append(epoch_loss)

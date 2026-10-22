@@ -16,3 +16,5 @@ class Config(BaseConfig):
     comet_enabled: bool = True
     log_every_n_steps: int = 10
     log_code_every_n_steps: int | None = 100
+    comet_experiment_name: str = "test128_2"
+
