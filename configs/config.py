@@ -20,6 +20,10 @@ class Config:
     batch_size: int = 4
     trunc_len: int | None = 512
 
+    # Model
+    num_encoder_layers: int = 6
+    num_decoder_layers: int = 6
+
     # Training
     max_train_samples: int | None = None
     max_val_samples: int | None = None

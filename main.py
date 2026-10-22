@@ -134,6 +134,8 @@ def main():
         pad_token_id=tokenizer.pad_token_id,
         eos_token_id=tokenizer.eos_token_id,
         decoder_start_token_id=tokenizer.bos_token_id,
+        num_encoder_layers=config.num_encoder_layers,
+        num_decoder_layers=config.num_decoder_layers,
     ).to(device)
 
     optimizer = optim.Adam(model.model.parameters(), lr=config.learning_rate)
