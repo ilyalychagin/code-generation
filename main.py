@@ -3,6 +3,8 @@ from src.models.model import TestModel
 from torch.utils.data import DataLoader
 
 from functools import partial
+import argparse
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -12,7 +14,8 @@ from src.scripts.train import train
 from src.scripts.inference import write_answer
 from src.utils.utils import set_seed
 from src.utils.logging import create_experiment, validate_logging_config
-from configs.config import Config
+from src.utils.config import load_config
+from configs.config import PROJECT_ROOT
 from src.dataset.dataset import get_tokenized_dataset, get_raw_dataset
 from src.models.tokenizer import get_tokenizer
 
@@ -27,8 +30,23 @@ def limit_dataset(dataset, max_samples, seed):
     return dataset.shuffle(seed=seed).select(range(max_samples))
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train a code generation model")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=PROJECT_ROOT / "configs/config.py",
+        help="Path to a Python file defining a Config dataclass",
+    )
+    return parser.parse_args()
+
+
 def main():
-    config = Config()
+    args = parse_args()
+    config_path = args.config.expanduser().resolve()
+    config = load_config(config_path)
+    print(f"Config: {config_path}", flush=True)
+    print(f"Output directory: {config.output_dir.resolve()}", flush=True)
     validate_logging_config(config)
     for limit in (config.max_train_samples, config.max_val_samples):
         if limit is not None and limit < 1:
