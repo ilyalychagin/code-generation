@@ -10,7 +10,7 @@ class Config(BaseConfig):
     max_train_samples: int | None = 1000000
     max_val_samples: int | None = 5000
     epochs: int = 1
-    learning_rate: float = 1e-4
+    learning_rate: float = 7e-5
     comet_experiment_name: str = "baseline_1000k"
     log_every_n_steps: int = 100
     log_code_every_n_steps: int | None = 10000
