@@ -30,14 +30,15 @@ class Config:
     scheduler_patience: int = 2
 
     # Generation
+    test_batch_size: int = 64
     max_new_tokens: int = 128
 
     # Comet logs locally; COMET_API_KEY is used only for uploading afterwards.
-    comet_enabled: bool = False
+    comet_enabled: bool = True
     comet_upload_on_end: bool = True
     comet_upload_timeout: int = 60
     comet_project: str = "hw02-code-generation"
-    comet_workspace: str | None = None
+    comet_workspace: str | None = ""
     comet_experiment_name: str = "baseline"
     log_every_n_steps: int = 50
     log_code_every_n_steps: int | None = 1000

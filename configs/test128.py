@@ -11,6 +11,7 @@ class Config(BaseConfig):
     epochs: int = 100
     learning_rate: float = 1e-3
     scheduler_patience: int = 100
+    output_dir: Path = PROJECT_ROOT / "runs/test128_2"
 
     comet_enabled: bool = True
     log_every_n_steps: int = 10

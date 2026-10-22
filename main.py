@@ -114,7 +114,7 @@ def main():
 
     test_loader = DataLoader(
         dataset['test'],
-        batch_size=config.batch_size,
+        batch_size=config.test_batch_size,
         shuffle=False,
         collate_fn=partial(
             collate, 
@@ -159,7 +159,7 @@ def main():
                 samples=samples,
                 collate_fn=test_loader.collate_fn,
                 device=device,
-                batch_size=config.batch_size,
+                batch_size=config.test_batch_size,
                 max_new_tokens=config.max_new_tokens,
             )
 
