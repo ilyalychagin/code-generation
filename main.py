@@ -13,7 +13,7 @@ import torch.optim as optim
 from src.scripts.train import train
 from src.scripts.inference import write_answer
 from src.utils.utils import set_seed
-from src.utils.logging import create_experiment, validate_logging_config
+from src.utils.logging import create_experiment, log_code_samples, validate_logging_config
 from src.utils.config import load_config
 from configs.config import PROJECT_ROOT
 from src.dataset.dataset import get_tokenized_dataset, get_raw_dataset
@@ -144,6 +144,23 @@ def main():
 
     experiment = create_experiment(config, model, optimizer, scheduler, device)
     try:
+        code_logger = None
+        if experiment is not None and config.log_code_every_n_steps is not None:
+            samples = {
+                name: [data[index] for index in range(min(config.log_code_num_samples, len(data)))]
+                for name, data in {"train": train_dataset, "test": dataset["test"]}.items()
+            }
+            code_logger = partial(
+                log_code_samples,
+                experiment=experiment,
+                tokenizer=tokenizer,
+                samples=samples,
+                collate_fn=test_loader.collate_fn,
+                device=device,
+                batch_size=config.batch_size,
+                max_new_tokens=config.max_new_tokens,
+            )
+
         train(
             model, train_loader, val_loader, nn.CrossEntropyLoss(), optimizer,
             scheduler, config.epochs, device,
@@ -151,6 +168,8 @@ def main():
             log_every_n_steps=config.log_every_n_steps,
             checkpoint_dir=config.output_dir,
             resume_from_checkpoint=config.resume_from_checkpoint,
+            code_logger=code_logger,
+            log_code_every_n_steps=config.log_code_every_n_steps,
         )
 
         torch.save(model.state_dict(), config.output_dir / "checkpoint.pt")

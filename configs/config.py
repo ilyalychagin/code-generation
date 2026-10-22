@@ -38,3 +38,5 @@ class Config:
     comet_workspace: str | None = None
     comet_experiment_name: str = "baseline"
     log_every_n_steps: int = 50
+    log_code_every_n_steps: int | None = 1000
+    log_code_num_samples: int = 8

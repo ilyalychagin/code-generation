@@ -7,6 +7,7 @@ from src.utils.logging import gradient_norm
 def train_one_epoch(
     model, train_loader, criterion, optimizer, device,
     experiment=None, epoch=0, start_step=0, log_every_n_steps=50,
+    code_logger=None, log_code_every_n_steps=1_000,
 ):
     model.train()
 
@@ -61,6 +62,9 @@ def train_one_epoch(
         optimizer.step()
         optimizer.zero_grad()
 
+        if code_logger is not None and (step == 1 or step % log_code_every_n_steps == 0):
+            code_logger(model, step=step, epoch=epoch)
+
         progress.set_postfix(
             loss=f"{loss_value:.4f}",
             avg_loss=f"{total_loss / total_tokens:.4f}",
@@ -114,6 +118,7 @@ def train(
     model, train_loader, val_loader, criterion, optimizer, scheduler, epochs, device,
     experiment=None, log_every_n_steps=50,
     checkpoint_dir=None, resume_from_checkpoint=None,
+    code_logger=None, log_code_every_n_steps=1_000,
 ):
 
     if log_every_n_steps < 1:
@@ -143,6 +148,8 @@ def train(
             epoch=epoch + 1,
             start_step=global_step,
             log_every_n_steps=log_every_n_steps,
+            code_logger=code_logger,
+            log_code_every_n_steps=log_code_every_n_steps,
         )
         global_step += len(batch_losses)
         train_losses.append(epoch_loss)
@@ -185,5 +192,8 @@ def train(
                 step=global_step,
                 epoch=epoch + 1,
             )
-    
+
+    if code_logger is not None and global_step > 1 and global_step % log_code_every_n_steps != 0:
+        code_logger(model, step=global_step, epoch=len(train_losses))
+
     return train_losses, val_losses

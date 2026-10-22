@@ -11,6 +11,10 @@ def validate_logging_config(config):
         raise ValueError("log_every_n_steps must be positive")
     if config.comet_enabled and not os.environ.get("COMET_API_KEY"):
         raise ValueError("Set COMET_API_KEY before enabling Comet logging")
+    if config.log_code_every_n_steps is not None and config.log_code_every_n_steps < 1:
+        raise ValueError("log_code_every_n_steps must be positive or None")
+    if config.log_code_num_samples < 1:
+        raise ValueError("log_code_num_samples must be positive")
 
 
 def _flatten_parameters(values, prefix=""):
@@ -117,3 +121,56 @@ def gradient_norm(model):
     if not norms:
         return 0.0
     return torch.stack(norms).norm(2).item()
+
+
+@torch.inference_mode()
+def log_code_samples(
+    model, step, epoch, *, experiment, tokenizer, samples, collate_fn,
+    device, batch_size, max_new_tokens,
+):
+    was_training = model.training
+    model.eval()
+    rows = []
+    try:
+        for split_name, examples in samples.items():
+            for start in range(0, len(examples), batch_size):
+                batch_examples = examples[start:start + batch_size]
+                batch = {
+                    key: value.to(device)
+                    for key, value in collate_fn(batch_examples).items()
+                }
+                output_tokens = model.generate(
+                    **batch,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                    num_beams=1,
+                )
+                questions = tokenizer.batch_decode(
+                    batch["input_ids"].cpu(), skip_special_tokens=True,
+                    clean_up_tokenization_spaces=False,
+                )
+                predictions = tokenizer.batch_decode(
+                    output_tokens.cpu(), skip_special_tokens=True,
+                    clean_up_tokenization_spaces=False,
+                )
+                for index, (example, question, prediction) in enumerate(
+                    zip(batch_examples, questions, predictions), start=start
+                ):
+                    reference = (
+                        tokenizer.decode(
+                            example["label_ids"], skip_special_tokens=True,
+                            clean_up_tokenization_spaces=False,
+                        )
+                        if "label_ids" in example else ""
+                    )
+                    rows.append([
+                        step, epoch, split_name, index, question, reference, prediction,
+                    ])
+    finally:
+        model.train(was_training)
+
+    experiment.log_table(
+        filename=f"code_samples_step_{step}.csv",
+        tabular_data=rows,
+        headers=["step", "epoch", "split", "sample", "question", "reference", "prediction"],
+    )
