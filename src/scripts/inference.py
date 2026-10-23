@@ -4,7 +4,7 @@ from pathlib import Path
 from tqdm.auto import tqdm
 
 @torch.no_grad()
-def inference(model, test_loader, device, tokenizer, max_new_tokens=128):
+def inference(model, test_loader, device, tokenizer, max_new_tokens=128, num_beams=1):
 
     model.eval()
 
@@ -21,7 +21,9 @@ def inference(model, test_loader, device, tokenizer, max_new_tokens=128):
             key: value.to(device)
             for key, value in batch.items()
         }
-        output_tokens = model.generate(**batch, max_new_tokens=max_new_tokens)
+        output_tokens = model.generate(
+            **batch, max_new_tokens=max_new_tokens, num_beams=num_beams, do_sample=False,
+        )
         outputs = tokenizer.batch_decode(
             output_tokens,
             skip_special_tokens=True,
@@ -33,8 +35,11 @@ def inference(model, test_loader, device, tokenizer, max_new_tokens=128):
     
     return answer
 
-def write_answer(model, test_loader, device, tokenizer, output_path="pass1_questions.jsonl", max_new_tokens=128):
-    answer = inference(model, test_loader, device, tokenizer, max_new_tokens=max_new_tokens)
+def write_answer(model, test_loader, device, tokenizer, output_path="pass1_questions.jsonl", max_new_tokens=128, num_beams=1):
+    answer = inference(
+        model, test_loader, device, tokenizer,
+        max_new_tokens=max_new_tokens, num_beams=num_beams,
+    )
     
     assert len(answer) == len(test_loader.dataset)
     

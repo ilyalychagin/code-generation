@@ -23,6 +23,8 @@ class Config:
     # Model
     num_encoder_layers: int = 6
     num_decoder_layers: int = 6
+    d_ff: int = 2048
+    feed_forward_proj: str = "relu"
 
     # Training
     max_train_samples: int | None = None
@@ -38,6 +40,7 @@ class Config:
     # Generation
     test_batch_size: int = 64
     max_new_tokens: int = 512
+    num_beams: int = 1
 
     # Comet logs locally; COMET_API_KEY is used only for uploading afterwards.
     comet_enabled: bool = True

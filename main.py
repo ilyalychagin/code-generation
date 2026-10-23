@@ -136,6 +136,8 @@ def main():
         decoder_start_token_id=tokenizer.bos_token_id,
         num_encoder_layers=config.num_encoder_layers,
         num_decoder_layers=config.num_decoder_layers,
+        d_ff=config.d_ff,
+        feed_forward_proj=config.feed_forward_proj,
     ).to(device)
 
     optimizer = optim.Adam(model.model.parameters(), lr=config.learning_rate)
@@ -163,6 +165,7 @@ def main():
                 device=device,
                 batch_size=config.test_batch_size,
                 max_new_tokens=config.max_new_tokens,
+                num_beams=config.num_beams,
             )
 
         train(
@@ -184,6 +187,7 @@ def main():
             model, test_loader, device, tokenizer,
             output_path=config.output_dir / "pass1_questions.jsonl",
             max_new_tokens=config.max_new_tokens,
+            num_beams=config.num_beams,
         )
     finally:
         finish_experiment(experiment, config)

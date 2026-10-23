@@ -7,9 +7,14 @@ class TestModel(nn.Module):
     def __init__(
         self, vocab_size=None, pad_token_id=None, eos_token_id=None,
         decoder_start_token_id=None, num_encoder_layers=6, num_decoder_layers=6,
+        d_ff=2048, feed_forward_proj="relu",
     ):
         super().__init__()
-        self.config = T5Config.from_pretrained('google-t5/t5-small')
+        model_config = T5Config.from_pretrained('google-t5/t5-small').to_dict()
+        model_config.update(d_ff=d_ff, feed_forward_proj=feed_forward_proj)
+        model_config.pop("dense_act_fn", None)
+        model_config.pop("is_gated_act", None)
+        self.config = T5Config.from_dict(model_config)
         self.config.num_layers = num_encoder_layers
         self.config.num_decoder_layers = num_decoder_layers
         if vocab_size is not None:

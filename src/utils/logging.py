@@ -161,7 +161,7 @@ def gradient_norm(model):
 @torch.inference_mode()
 def log_code_samples(
     model, step, epoch, *, experiment, tokenizer, samples, collate_fn,
-    device, batch_size, max_new_tokens,
+    device, batch_size, max_new_tokens, num_beams=1,
 ):
     was_training = model.training
     model.eval()
@@ -178,7 +178,7 @@ def log_code_samples(
                     **batch,
                     max_new_tokens=max_new_tokens,
                     do_sample=False,
-                    num_beams=1,
+                    num_beams=num_beams,
                 )
                 questions = tokenizer.batch_decode(
                     batch["input_ids"].cpu(), skip_special_tokens=True,
