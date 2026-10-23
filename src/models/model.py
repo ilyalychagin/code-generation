@@ -1,4 +1,5 @@
 from transformers import T5ForConditionalGeneration, T5Config
+from transformers.cache_utils import DynamicCache, EncoderDecoderCache
 import torch.nn as nn
 
 class TestModel(nn.Module):
@@ -26,4 +27,9 @@ class TestModel(nn.Module):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels, **kwargs)
     
     def generate(self, input_ids, attention_mask, **kwargs):
+        if self.config.num_layers != self.config.num_decoder_layers and kwargs.get("use_cache", True):
+            kwargs.setdefault("past_key_values", EncoderDecoderCache(
+                DynamicCache(config=self.model.decoder.config),
+                DynamicCache(config=self.model.decoder.config),
+            ))
         return self.model.generate(input_ids=input_ids, attention_mask=attention_mask, **kwargs)
